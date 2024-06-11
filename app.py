@@ -2,86 +2,91 @@ import streamlit as st
 import pandas as pd
 import re
 import joblib
+import json
 from nltk.tokenize import word_tokenize
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
-import json
 
-# Load the model
-model = joblib.load('model.pkl')
+# Constants
+MODEL_PATH = 'model.pkl'
+VOCAB_PATH = 'vocab.json'
+PADDING_LENGTH = 27
+EXCLAMATION = '!'
+QUESTION = '?'
+POTENTIAL_CLICKBAIT_WORDS = ['bikin', 'viral', 'gara', 'fakta', 'kejut']
+ANGKA = ['nol', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan']
+
+# Load resources
+model = joblib.load(MODEL_PATH)
 stemmer = StemmerFactory().create_stemmer()
-angka = ['nol', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan']
-potential_clickbait_words = ['bikin', 'viral', 'gara', 'fakta', 'kejut']
-padding_length = 27
-with open('vocab.json', 'r') as vocab_file:
+with open(VOCAB_PATH, 'r') as vocab_file:
     vocab = json.load(vocab_file)
 
 def preprocess_text(text):
-    # remove non-alphabet characters except exclamations and question marks and keep numbers
-    text = re.sub(r'[^A-Za-z0-9?!]', ' ', text)
-    # remove whitespace
-    text = text.strip()
-    # remove newline
-    text = text.replace('\n', ' ')
-    # remove extra space
-    text = re.sub(' +', ' ', text)
-    # lowercase
-    text = text.lower()
-    # tokenize
-    text = word_tokenize(text)
-    result = text;
-    return result
-
+    """
+    Preprocess the input text by removing non-alphabet characters,
+    extra spaces, converting to lowercase, and tokenizing.
+    """
+    text = re.sub(r'[^A-Za-z0-9?!]', ' ', text).strip().replace('\n', ' ')
+    text = re.sub(' +', ' ', text).lower()
+    return word_tokenize(text)
 
 def check_features(text):
-    result = []
-    # check if the text contains exclamation mark
-    result.append(1 if '!' in text else 2)
-    # check if the text contains question mark
-    result.append(3 if '?' in text else 4)
-    # check if the text contains multiple exclamation marks
-    result.append(5 if '!!' in text else 6)
-    # check if the text contains digit
-    result.append(7 if any(char.isdigit() for char in text) else 8)
-    # check if the text contains numbers
-    result.append(9 if any(word.lower() in angka for word in text.split()) else 10)
-    # check if the text contains potential clickbait words
-    result.append(11 if any(word.lower() in potential_clickbait_words for word in text.split()) else 12)
-    return result
+    """
+    Check for specific features in the text such as exclamation marks,
+    question marks, digits, numbers, and potential clickbait words.
+    """
+    text_str = ' '.join(text)
+    features = [
+        1 if EXCLAMATION in text_str else 2,
+        3 if QUESTION in text_str else 4,
+        5 if '!!' in text_str else 6,
+        7 if any(char.isdigit() for char in text_str) else 8,
+        9 if any(word in ANGKA for word in text) else 10,
+        11 if any(word in POTENTIAL_CLICKBAIT_WORDS for word in text) else 12,
+    ]
+    return features
 
 def update_vocab(text):
+    """
+    Update the vocabulary with new words from the text.
+    """
     global vocab
     last_index = len(vocab) + 1000
     for word in text:
         if word not in vocab:
             vocab[word] = last_index
-            last_index += 1  # Increment last_index for the next new word
+            last_index += 1
 
-
-st.title('Indonesian Clickbait Headline Detector')
-
-user_input = st.text_input("Masukkan Judul Berita:")
+def vectorize_and_pad(text):
+    """
+    Vectorize the text using the vocabulary and pad it to the required length.
+    """
+    vectorized = [vocab[word] for word in text if word in vocab]
+    return vectorized[:PADDING_LENGTH] + [-1] * (PADDING_LENGTH - len(vectorized))
 
 def process_input(text):
-    df_one = pd.DataFrame([text], columns=['title'])
-    df_one['preprocessed'] = df_one['title'].apply(preprocess_text)
-    df_one['stemmed'] = df_one['preprocessed'].apply(lambda x: [stemmer.stem(word) for word in x])
-    df_one['features'] = df_one['preprocessed'].apply(lambda x: check_features(' '.join(x)))
-    update_vocab(df_one['stemmed'].values[0])
-    df_one['vectorized'] = df_one['stemmed'].apply(lambda x: [vocab[word] for word in x if word in vocab])
-    df_one['padded'] = df_one['vectorized'].apply(lambda x: (x[:padding_length] if len(x) > padding_length else x + [-1] * (padding_length - len(x))))
-    df_one['padded'] = df_one.apply(lambda x: x['features'] + x['padded'], axis=1)
-    return df_one
+    """
+    Process the user input: preprocess, stem, extract features, update vocabulary,
+    vectorize, and pad the text.
+    """
+    preprocessed = preprocess_text(text)
+    stemmed = [stemmer.stem(word) for word in preprocessed]
+    features = check_features(preprocessed)
+    update_vocab(stemmed)
+    vectorized = vectorize_and_pad(stemmed)
+    return features + vectorized
+
+# Streamlit App
+st.title('Indonesian Clickbait Headline Detector')
+user_input = st.text_input("Masukkan Judul Berita:")
 
 if st.button('Preprocess'):
-    df_one = process_input(user_input)
-    st.write(df_one)
+    processed_data = process_input(user_input)
+    st.write(processed_data)
 
 if st.button('Predict'):
-    df_one = process_input(user_input)
-    prediction = model.predict(df_one['padded'].values.tolist())[0]
-    if prediction == 0:
-        st.write('Headline ini bukan clickbait')
-    else:
-        st.write('Headline ini clickbait')
-
+    processed_data = process_input(user_input)
+    prediction = model.predict([processed_data])[0]
+    result = 'Headline ini bukan clickbait' if prediction == 0 else 'Headline ini clickbait'
+    st.write(result)
