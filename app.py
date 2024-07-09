@@ -1,6 +1,7 @@
 import streamlit as st
 from preprocessing import process_input
 import joblib
+import pandas as pd
 
 MODEL_PATH = 'model.pkl'
 model = joblib.load(MODEL_PATH)
