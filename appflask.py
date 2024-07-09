@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from preprocessing import process_input
 import joblib
+import nltk
+nltk.download('punkt')
 
 MODEL_PATH = 'model.pkl'
 model = joblib.load(MODEL_PATH)
