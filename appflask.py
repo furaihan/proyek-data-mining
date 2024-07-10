@@ -17,12 +17,31 @@ def home():
 def predict():
     data = request.get_json()
     if 'headline' not in data:
-        return jsonify({'error': 'Input data must contain a key named "headline"'}), 400
+        return jsonify({
+            'error': 'Input data must contain a key named "headline"',
+            'status': 'error'
+        }), 400
+    
     headline = data['headline']
     processed_data = process_input(headline)
-    prediction = model.predict([processed_data])[0]
-    result = 'Headline ini bukan clickbait' if prediction == 0 else 'Headline ini clickbait'
-    return jsonify({'prediction': result}), 200
+    
+    # Get probability estimates
+    probabilities = model.predict_proba([processed_data])[0]
+    
+    # Assuming binary classification where index 1 corresponds to clickbait
+    clickbait_probability = float(probabilities[1])
+    
+    is_clickbait = clickbait_probability > 0.5
+    
+    result = {
+        'prediction': 'clickbait' if is_clickbait else 'not_clickbait',
+        'is_clickbait': bool(is_clickbait),
+        'headline': headline,
+        'clickbait_probability': clickbait_probability,
+        'status': 'success'
+    }
+    
+    return jsonify(result), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
