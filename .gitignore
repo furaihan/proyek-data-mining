@@ -1,3 +1,5 @@
 *.pkl
 __pycache__/*
 data.json
+cc.id.300.bin
+fasttext_clickbait.bin
