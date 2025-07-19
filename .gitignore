@@ -3,3 +3,11 @@ __pycache__/*
 data.json
 cc.id.300.bin
 fasttext_clickbait.bin
+balanced_data.csv
+feature_engineering_steps.csv
+preprocessing_steps.csv
+subset_clickbait.csv
+tfidf_first_5_rows.csv
+tfidf.csv
+vocab_count.csv
+*.txt
