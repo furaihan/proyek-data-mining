@@ -1,4 +1,5 @@
 *.pkl
+*.joblib
 __pycache__/*
 data.json
 cc.id.300.bin
