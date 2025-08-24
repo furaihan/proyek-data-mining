@@ -10,11 +10,28 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 import os
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Set NLTK data path
+os.environ['NLTK_DATA'] = '/opt/clickbait-api/nltk_data'
+
+# Configure logging
+if not os.path.exists('/var/log/clickbait-api'):
+    os.makedirs('/var/log/clickbait-api')
+
+logging.basicConfig(
+    handlers=[RotatingFileHandler('/var/log/clickbait-api/app.log', maxBytes=100000, backupCount=10)],
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s %(message)s'
+)
+
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 
 # Initialize Sastrawi components
 factory = StemmerFactory()
